@@ -1,0 +1,471 @@
+-- PRÁCTICA PL1:
+SET SERVEROUTPUT ON;
+-- Ejercicio 1:
+--Crear las tablas marcas, coches, concesionarios, clientes, marco, distribución, ventas y
+--empleados usando el script descargado anteriormente.
+--TABLAS YA CREADAS
+
+-- Ejercicio 2:
+--Realizar un procedimiento almacenado que muestre en pantalla “Hola Mundo”.
+CREATE OR REPLACE PROCEDURE PROCEDURE2 IS 
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Hola Mundo');
+END;
+EXECUTE PROCEDURE2;
+
+-- Ejercicio 3:
+--Realizar un procedimiento almacenado que reciba un nombre como parámetro y muestre en
+--pantalla “Hola” + nombre.
+CREATE OR REPLACE PROCEDURE PROCEDURE3 (NOMBRE IN VARCHAR2) IS
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Hola '|| NOMBRE);
+END;
+EXECUTE PROCEDURE3('Omar');
+
+-- Ejercicio 4:
+--Realizar un procedimiento almacenado que muestre el valor máximo tomado por el atributo
+--cantidad de la tabla distribución.
+CREATE OR REPLACE PROCEDURE PROCEDURE4 IS
+    CANTIDAD DISTRIBUCION.CANTIDAD%TYPE;
+BEGIN
+    SELECT MAX(CANTIDAD) INTO CANTIDAD FROM DISTRIBUCION;
+    DBMS_OUTPUT.PUT_LINE('Cantidad máxima: ' || CANTIDAD);
+END;
+EXECUTE PROCEDURE4;
+
+-- Ejercicio 5:
+--Realizar un procedimiento almacenado que muestre para un concesionario dado el número
+--total de coches que contiene.
+CREATE OR REPLACE PROCEDURE PROCEDURE5 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE) IS
+    TOTAL_COCHES DISTRIBUCION.CANTIDAD%TYPE;
+BEGIN
+    SELECT SUM(CANTIDAD) INTO TOTAL_COCHES FROM DISTRIBUCION
+        WHERE CIFC=CONCIFC;
+    DBMS_OUTPUT.PUT_LINE('El concesionario: '||CONCIFC||' tiene: '||TOTAL_COCHES||' coche/s.');
+END;
+EXECUTE PROCEDURE5(1);
+
+-- Ejercicio 6:
+--Crear una tabla con los siguientes campos: nº total de ventas, nº total de coches, nº total de
+--marcas, nº total de clientes, nº total de concesionarios. Crear un procedimiento almacenado
+--que realice una consulta a la base de datos para cada uno de estos atributos y vaya
+--almacenando los valores en variables para finalmente hacer una inserción de todos los datos en
+--la tabla. Comprobar que la inserción se realiza correctamente.
+CREATE TABLE TOTALES (
+    NVENTAS NUMBER,
+    NCOCHES NUMBER,
+    NMARCAS NUMBER,
+    NCLIENTES NUMBER,
+    NCONCESIONARIOS NUMBER
+);
+CREATE OR REPLACE PROCEDURE PROCEDURE6 IS
+    NV TOTALES.NVENTAS%TYPE;
+    NCO TOTALES.NCOCHES%TYPE;
+    NM TOTALES.NMARCAS%TYPE;
+    NCL TOTALES.NCLIENTES%TYPE;
+    NCN TOTALES.NCONCESIONARIOS%TYPE;
+BEGIN
+    SELECT COUNT(*) INTO NV FROM VENTAS;
+    SELECT COUNT(*) INTO NCO FROM COCHES;
+    SELECT COUNT(*) INTO NM FROM MARCAS;
+    SELECT COUNT(*) INTO NCL FROM CLIENTES;
+    SELECT COUNT(*) INTO NCN FROM CONCESIONARIOS;
+    INSERT INTO TOTALES VALUES(NV, NCO, NM, NCL, NCN);
+    COMMIT;
+END;
+EXECUTE PROCEDURE6;
+SELECT * FROM TOTALES;
+
+-- Ejercicio 7:
+--Crear una nueva tabla denominada HistoricoClientes cuya clave primaria sea dni.
+--Realizar un procedimiento almacenado que copie el contenido de la tabla Clientes a dicha
+--tabla. Ejecutar el procedimiento almacenado dos veces.
+CREATE TABLE HISTORICOCLIENTES (
+    DNI VARCHAR2(9),
+    NOMBRE VARCHAR2(40),
+    APELLIDO VARCHAR2(40),
+    CIUDAD VARCHAR2(25),
+    CONSTRAINT PK_HISTORICOCLIENTES PRIMARY KEY(DNI)
+);
+CREATE OR REPLACE PROCEDURE PROCEDURE7 IS 
+    CURSOR C1 IS SELECT * FROM CLIENTES;
+    CL1 C1%ROWTYPE;
+BEGIN
+    OPEN C1;
+    FETCH C1 INTO CL1;
+    WHILE C1%FOUND LOOP
+        BEGIN 
+            INSERT INTO HISTORICOCLIENTES VALUES(CL1.DNI, CL1.NOMBRE, CL1.APELLIDO, CL1.CIUDAD);
+        EXCEPTION
+        WHEN DUP_VAL_ON_INDEX THEN
+            UPDATE HISTORICOCLIENTES
+            SET NOMBRE=CL1.NOMBRE, APELLIDO=CL1.APELLIDO, CIUDAD=CL1.CIUDAD
+            WHERE DNI=CL1.DNI;
+            DBMS_OUTPUT.PUT_LINE('Valores duplicados');
+        END;
+        FETCH C1 INTO CL1;
+    END LOOP;
+    CLOSE C1;
+    COMMIT;
+END;
+EXECUTE PROCEDURE7;
+
+-- Ejercicio 8:
+--Realizar un procedimiento almacenado que muestre en pantalla la información sobre los
+--objetos creados por el usuario.
+--Cursor Implicito:
+CREATE OR REPLACE PROCEDURE PROCEDURE8 IS
+BEGIN
+    FOR I IN (SELECT * FROM USER_OBJECTS) LOOP
+        DBMS_OUTPUT.PUT_LINE('Objeto: '||I.OBJECT_NAME||' Tipo: '||I.OBJECT_TYPE||' Creado: '||I.CREATED);
+    END LOOP;
+END;
+EXECUTE PROCEDURE8;
+--Cursor Explicito:
+CREATE OR REPLACE PROCEDURE PROCEDURE8 IS
+    CURSOR C1 IS SELECT OBJECT_NAME, OBJECT_TYPE, CREATED FROM USER_OBJECTS;
+    NOMBRE USER_OBJECTS.OBJECT_NAME%TYPE;
+    TIPO USER_OBJECTS.OBJECT_TYPE%TYPE;
+    CREADO USER_OBJECTS.CREATED%TYPE;
+BEGIN
+    OPEN C1;    
+    LOOP
+        FETCH C1 INTO NOMBRE, TIPO, CREADO;
+        EXIT WHEN C1%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE('Objeto: '||NOMBRE||' Tipo: '||TIPO||' Creado: '||CREADO);
+    END LOOP;
+    CLOSE C1;
+END;
+EXECUTE PROCEDURE8;
+
+-- Ejercicio 9:
+--Crear una tabla, denominada Compras, con la siguiente información: dni, nombre, apellido, nº
+--de coches comprados. Realizar un procedimiento PL/SQL que utiliza un cursor de lectura
+--para insertar los datos en la nueva tabla.
+CREATE TABLE COMPRAS2 (
+    DNI VARCHAR2(9),
+    NOMBRE VARCHAR2(40),
+    APELLIDO VARCHAR2(40),
+    N_COCHES NUMBER(3)
+);
+CREATE OR REPLACE PROCEDURE PROCEDURE9 IS
+    CURSOR C1 IS SELECT CL.DNI, NOMBRE, APELLIDO, COUNT(*) AS N_COCHES
+        FROM CLIENTES CL, VENTAS V WHERE CL.DNI=V.DNI GROUP BY CL.DNI, NOMBRE, APELLIDO;
+    CL1 C1%ROWTYPE;
+BEGIN
+    OPEN C1;
+    FETCH C1 INTO CL1;
+    WHILE C1%FOUND LOOP
+        INSERT INTO COMPRAS2 VALUES(CL1.DNI, CL1.NOMBRE, CL1.APELLIDO, CL1.N_COCHES);
+        FETCH C1 INTO CL1;        
+    END LOOP;
+    COMMIT;
+    CLOSE C1;
+END;
+EXECUTE PROCEDURE9;
+SELECT * FROM COMPRAS2;
+
+-- Ejercicio 10:
+--Realizar un procedimiento almacenado que dado un código de concesionario devuelve el
+--número ventas que se han realizado en el mismo. Realizar lo mismo empleando una función
+--en vez de un procedimiento.
+--PROCEDIMIENTO:
+CREATE OR REPLACE PROCEDURE PROCEDURE10(CONCIFC IN CONCESIONARIOS.CIFC%TYPE, NV OUT NUMBER) IS
+BEGIN
+    SELECT COUNT(*) INTO NV FROM VENTAS WHERE CIFC=CONCIFC;
+END;
+DECLARE
+    NV NUMBER;
+BEGIN
+    PROCEDURE10(1, NV);
+    DBMS_OUTPUT.PUT_LINE('Número de Ventas: '||NV);
+END;
+--FUNCIÓN:
+CREATE OR REPLACE FUNCTION FUNCTION10(CONCIFC IN CONCESIONARIOS.CIFC%TYPE)
+    RETURN NUMBER IS
+    NV NUMBER;    
+BEGIN
+    SELECT COUNT(*) INTO NV FROM VENTAS WHERE CIFC=CONCIFC;
+    RETURN NV;
+END;
+DECLARE
+    NV NUMBER;
+BEGIN
+    NV:=FUNCTION10(1);
+    DBMS_OUTPUT.PUT_LINE('Número de Ventas: '||NV);
+END;
+
+-- Ejercicio 11:
+--Realizar una función en PL/SQL, que dada una ciudad que se le pasa como parámetro
+--devuelve el número de clientes de dicha ciudad. Realizar lo mismo empleando un
+--procedimiento en vez de una función.
+--PROCEDIMIENTO:
+CREATE OR REPLACE PROCEDURE PROCEDURE11(CLCIUDAD CLIENTES.CIUDAD%TYPE, NC OUT NUMBER) IS
+BEGIN
+    SELECT COUNT(*) INTO NC FROM CLIENTES WHERE CIUDAD=CLCIUDAD;
+END;
+DECLARE
+    NC NUMBER;
+BEGIN
+    PROCEDURE11('barcelona', NC);
+    DBMS_OUTPUT.PUT_LINE('Número de Clientes: '||NC);
+END;
+--FUNCION:
+CREATE OR REPLACE FUNCTION FUNCTION11(CLCIUDAD CLIENTES.CIUDAD%TYPE)
+    RETURN NUMBER IS
+    NC NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO NC FROM CLIENTES WHERE CIUDAD=CLCIUDAD;
+    RETURN NC;
+END;
+DECLARE
+    NC NUMBER;
+BEGIN
+    NC:=FUNCTION11('barcelona');
+    DBMS_OUTPUT.PUT_LINE('Número de Clientes: '||NC);
+END;
+
+-- Ejercicio 12:
+--Construir un procedimiento almacenado denominado ListarCochesPorCliente que
+--genere un listado que muestre por pantalla los coches que han sido adquiridos por cada cliente
+--de la siguiente forma:
+    -- - Cliente: nombre1 apellido1 numcoches1 numconc1
+         ---> Coche: codcoche1 nombrech1 modelo1 color1
+         ---> Coche: codcoche2 nombrech2 modelo2 color2
+    -- - Cliente: nombre2 apellido2 numcoches2 numconc2
+         ---> Coche: codcoche1 nombrech1 modelo1 color1
+         ---> Coche: codcoche2 nombrech2 modelo2 color2
+--Aquellos clientes que no han adquirido ningún coche no deben aparecer en el listado.
+CREATE OR REPLACE PROCEDURE PROCEDURE12 IS
+    CURSOR CL1 IS SELECT * FROM CLIENTES;
+    CURSOR CO1(CLDNI VENTAS.DNI%TYPE) IS SELECT V.CODCOCHE, C.NOMBRECH, C.MODELO, V.COLOR FROM VENTAS V, COCHES C
+        WHERE V.CODCOCHE=C.CODCOCHE AND V.DNI=CLDNI;
+    NCO NUMBER;
+    NCN NUMBER;
+BEGIN
+    FOR I IN CL1 LOOP
+        SELECT COUNT(*) INTO NCO FROM VENTAS WHERE DNI=I.DNI; 
+        SELECT COUNT(DISTINCT CIFC) INTO NCN FROM VENTAS WHERE DNI=I.DNI;
+        DBMS_OUTPUT.PUT_LINE('- Cliente: '||I.NOMBRE||' '||I.APELLIDO||' '||NCO||' '||NCN);
+        FOR J IN CO1(I.DNI) LOOP
+            DBMS_OUTPUT.PUT_LINE('  ---> Coche: '||J.CODCOCHE||' '||J.NOMBRECH||' '||J.MODELO||' '||J.COLOR);
+        END LOOP;
+    END LOOP;
+END;
+EXECUTE PROCEDURE12;
+
+-- Ejercicio 13:
+--Realizar otro procedimiento almacenado denominado ListarCochesUnCliente que
+--muestre por pantalla, de la misma forma que en el ejercicio anterior, los coches adquiridos por
+--un determinado cliente cuyo dni es enviado como parámetro de entrada a dicho
+--procedimiento.
+CREATE OR REPLACE PROCEDURE PROCEDURE13 (CLDNI IN CLIENTES.DNI%TYPE) IS
+    CURSOR CO1(DNIC VENTAS.DNI%TYPE) IS SELECT V.CODCOCHE, C.NOMBRECH, C.MODELO, V.COLOR FROM VENTAS V, COCHES C
+        WHERE V.CODCOCHE=C.CODCOCHE AND V.DNI=DNIC;
+    NCO NUMBER;
+    NCN NUMBER;
+    CL1 CLIENTES%ROWTYPE;
+BEGIN
+    SELECT COUNT(*) INTO NCO FROM VENTAS WHERE DNI=CLDNI;
+    SELECT COUNT(DISTINCT CIFC) INTO NCN FROM VENTAS WHERE DNI=CLDNI;
+    SELECT * INTO CL1 FROM CLIENTES WHERE DNI=CLDNI;
+    DBMS_OUTPUT.PUT_LINE('- Cliente: '||CL1.NOMBRE||' '||CL1.APELLIDO||' '||NCO||' '||NCN);
+    FOR I IN CO1(CLDNI) LOOP
+        DBMS_OUTPUT.PUT_LINE('  ---> Coche: '||I.CODCOCHE||' '||I.NOMBRECH||' '||I.MODELO||' '||I.COLOR);
+    END LOOP;
+END;
+EXECUTE PROCEDURE13(1);
+
+-- Ejercicio 14:
+--Crear un paquete denominado practicaPL1 que englobe todos los procedimientos y funciones
+--definidas con anterioridad en este ejercicio.
+CREATE OR REPLACE PACKAGE PRACTICAPL1 IS
+    PROCEDURE PROCEDURE2;
+    PROCEDURE PROCEDURE3 (NOMBRE IN VARCHAR2);
+    PROCEDURE PROCEDURE4;
+    PROCEDURE PROCEDURE5 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE);
+    PROCEDURE PROCEDURE6;
+    PROCEDURE PROCEDURE7;
+    PROCEDURE PROCEDURE8;
+    PROCEDURE PROCEDURE9;
+    PROCEDURE PROCEDURE10 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE, NV OUT NUMBER);
+    FUNCTION FUNCTION10 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE) RETURN NUMBER;
+    PROCEDURE PROCEDURE11 (CLCIUDAD CLIENTES.CIUDAD%TYPE, NC OUT NUMBER);
+    FUNCTION FUNCTION11 (CLCIUDAD CLIENTES.CIUDAD%TYPE) RETURN NUMBER;
+    PROCEDURE PROCEDURE12;
+    PROCEDURE PROCEDURE13 (CLDNI IN CLIENTES.DNI%TYPE);    
+END;
+CREATE OR REPLACE PACKAGE BODY PRACTICAPL1 IS
+    PROCEDURE PROCEDURE2 IS
+    BEGIN
+    DBMS_OUTPUT.PUT_LINE('Hola Mundo');
+    END;
+    PROCEDURE PROCEDURE3 (NOMBRE IN VARCHAR2) IS
+    BEGIN
+    DBMS_OUTPUT.PUT_LINE('Hola '|| NOMBRE);
+    END;
+    PROCEDURE PROCEDURE4 IS
+        CANTIDAD DISTRIBUCION.CANTIDAD%TYPE;
+    BEGIN
+        SELECT MAX(CANTIDAD) INTO CANTIDAD FROM DISTRIBUCION;
+        DBMS_OUTPUT.PUT_LINE('Cantidad máxima: ' || CANTIDAD);
+    END;    
+    PROCEDURE PROCEDURE5 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE) IS
+        TOTAL_COCHES DISTRIBUCION.CANTIDAD%TYPE;
+    BEGIN
+        SELECT SUM(CANTIDAD) INTO TOTAL_COCHES FROM DISTRIBUCION
+        WHERE CIFC=CONCIFC;
+        DBMS_OUTPUT.PUT_LINE('El concesionario: '||CONCIFC||' tiene: '||TOTAL_COCHES||' coche/s.');
+    END;
+    PROCEDURE PROCEDURE6 IS
+        NV TOTALES.NVENTAS%TYPE;
+        NCO TOTALES.NCOCHES%TYPE;
+        NM TOTALES.NMARCAS%TYPE;
+        NCL TOTALES.NCLIENTES%TYPE;
+        NCN TOTALES.NCONCESIONARIOS%TYPE;
+    BEGIN
+        SELECT COUNT(*) INTO NV FROM VENTAS;
+        SELECT COUNT(*) INTO NCO FROM COCHES;
+        SELECT COUNT(*) INTO NM FROM MARCAS;
+        SELECT COUNT(*) INTO NCL FROM CLIENTES;
+        SELECT COUNT(*) INTO NCN FROM CONCESIONARIOS;
+        INSERT INTO TOTALES VALUES(NV, NCO, NM, NCL, NCN);
+        COMMIT;
+    END;
+    PROCEDURE PROCEDURE7 IS 
+        CURSOR C1 IS SELECT * FROM CLIENTES;
+        CL1 C1%ROWTYPE;
+    BEGIN
+        OPEN C1;
+        FETCH C1 INTO CL1;
+        WHILE C1%FOUND LOOP
+            BEGIN 
+                INSERT INTO HISTORICOCLIENTES VALUES(CL1.DNI, CL1.NOMBRE, CL1.APELLIDO, CL1.CIUDAD);
+            EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                UPDATE HISTORICOCLIENTES
+                SET NOMBRE=CL1.NOMBRE, APELLIDO=CL1.APELLIDO, CIUDAD=CL1.CIUDAD
+                WHERE DNI=CL1.DNI;
+                DBMS_OUTPUT.PUT_LINE('Valores duplicados');
+            END;
+            FETCH C1 INTO CL1;
+        END LOOP;
+        CLOSE C1;
+        COMMIT;
+    END;
+    PROCEDURE PROCEDURE8 IS
+        CURSOR C1 IS SELECT OBJECT_NAME, OBJECT_TYPE, CREATED FROM USER_OBJECTS;
+        NOMBRE USER_OBJECTS.OBJECT_NAME%TYPE;
+        TIPO USER_OBJECTS.OBJECT_TYPE%TYPE;
+        CREADO USER_OBJECTS.CREATED%TYPE;
+    BEGIN
+        OPEN C1;    
+        LOOP
+            FETCH C1 INTO NOMBRE, TIPO, CREADO;
+            EXIT WHEN C1%NOTFOUND;
+            DBMS_OUTPUT.PUT_LINE('Objeto: '||NOMBRE||' Tipo: '||TIPO||' Creado: '||CREADO);
+        END LOOP;
+        CLOSE C1;
+    END;
+    PROCEDURE PROCEDURE9 IS
+        CURSOR C1 IS SELECT CL.DNI, NOMBRE, APELLIDO, COUNT(*) AS N_COCHES
+            FROM CLIENTES CL, VENTAS V WHERE CL.DNI=V.DNI GROUP BY CL.DNI, NOMBRE, APELLIDO;
+        CL1 C1%ROWTYPE;
+    BEGIN
+        OPEN C1;
+        FETCH C1 INTO CL1;
+        WHILE C1%FOUND LOOP
+            INSERT INTO COMPRAS2 VALUES(CL1.DNI, CL1.NOMBRE, CL1.APELLIDO, CL1.N_COCHES);
+            FETCH C1 INTO CL1;        
+        END LOOP;
+        COMMIT;
+        CLOSE C1;
+    END;
+    PROCEDURE PROCEDURE10 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE, NV OUT NUMBER) IS
+    BEGIN
+        SELECT COUNT(*) INTO NV FROM VENTAS WHERE CIFC=CONCIFC;
+    END;
+    FUNCTION FUNCTION10 (CONCIFC IN CONCESIONARIOS.CIFC%TYPE)
+        RETURN NUMBER IS
+        NV NUMBER;    
+    BEGIN
+        SELECT COUNT(*) INTO NV FROM VENTAS WHERE CIFC=CONCIFC;
+        RETURN NV;
+    END;
+    PROCEDURE PROCEDURE11 (CLCIUDAD CLIENTES.CIUDAD%TYPE, NC OUT NUMBER) IS
+    BEGIN
+        SELECT COUNT(*) INTO NC FROM CLIENTES WHERE CIUDAD=CLCIUDAD;
+    END;
+    FUNCTION FUNCTION11 (CLCIUDAD CLIENTES.CIUDAD%TYPE)
+        RETURN NUMBER IS
+        NC NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO NC FROM CLIENTES WHERE CIUDAD=CLCIUDAD;
+        RETURN NC;
+    END;
+    PROCEDURE PROCEDURE12 IS
+        CURSOR CL1 IS SELECT * FROM CLIENTES;
+        CURSOR CO1(CLDNI VENTAS.DNI%TYPE) IS SELECT V.CODCOCHE, C.NOMBRECH, C.MODELO, V.COLOR FROM VENTAS V, COCHES C
+            WHERE V.CODCOCHE=C.CODCOCHE AND V.DNI=CLDNI;
+        NCO NUMBER;
+        NCN NUMBER;
+    BEGIN
+        FOR I IN CL1 LOOP
+            SELECT COUNT(*) INTO NCO FROM VENTAS WHERE DNI=I.DNI; 
+            SELECT COUNT(DISTINCT CIFC) INTO NCN FROM VENTAS WHERE DNI=I.DNI;
+            DBMS_OUTPUT.PUT_LINE('- Cliente: '||I.NOMBRE||' '||I.APELLIDO||' '||NCO||' '||NCN);
+            FOR J IN CO1(I.DNI) LOOP
+                DBMS_OUTPUT.PUT_LINE('  ---> Coche: '||J.CODCOCHE||' '||J.NOMBRECH||' '||J.MODELO||' '||J.COLOR);
+            END LOOP;
+        END LOOP;
+    END;
+    PROCEDURE PROCEDURE13 (CLDNI IN CLIENTES.DNI%TYPE) IS
+        CURSOR CO1(DNIC VENTAS.DNI%TYPE) IS SELECT V.CODCOCHE, C.NOMBRECH, C.MODELO, V.COLOR FROM VENTAS V, COCHES C
+            WHERE V.CODCOCHE=C.CODCOCHE AND V.DNI=DNIC;
+        NCO NUMBER;
+        NCN NUMBER;
+        CL1 CLIENTES%ROWTYPE;
+    BEGIN
+        SELECT COUNT(*) INTO NCO FROM VENTAS WHERE DNI=CLDNI;
+        SELECT COUNT(DISTINCT CIFC) INTO NCN FROM VENTAS WHERE DNI=CLDNI;
+        SELECT * INTO CL1 FROM CLIENTES WHERE DNI=CLDNI;
+        DBMS_OUTPUT.PUT_LINE('- Cliente: '||CL1.NOMBRE||' '||CL1.APELLIDO||' '||NCO||' '||NCN);
+        FOR I IN CO1(CLDNI) LOOP
+            DBMS_OUTPUT.PUT_LINE('  ---> Coche: '||I.CODCOCHE||' '||I.NOMBRECH||' '||I.MODELO||' '||I.COLOR);
+        END LOOP;
+    END;
+END;
+EXECUTE PRACTICAPL1.PROCEDURE2;
+EXECUTE PRACTICAPL1.PROCEDURE3('Omar');
+EXECUTE PRACTICAPL1.PROCEDURE4;
+EXECUTE PRACTICAPL1.PROCEDURE5(1);
+EXECUTE PRACTICAPL1.PROCEDURE6;
+EXECUTE PRACTICAPL1.PROCEDURE7;
+EXECUTE PRACTICAPL1.PROCEDURE8;
+EXECUTE PRACTICAPL1.PROCEDURE9;
+DECLARE
+    NV NUMBER;
+BEGIN
+    PRACTICAPL1.PROCEDURE10(1, NV);
+    DBMS_OUTPUT.PUT_LINE('Número de Ventas: '||NV);
+END;
+DECLARE
+    NV NUMBER;
+BEGIN
+    NV:=PRACTICAPL1.FUNCTION10(1);
+    DBMS_OUTPUT.PUT_LINE('Número de Ventas: '||NV);
+END;
+DECLARE
+    NC NUMBER;
+BEGIN
+    PRACTICAPL1.PROCEDURE11('barcelona', NC);
+    DBMS_OUTPUT.PUT_LINE('Número de Clientes: '||NC);
+END;
+DECLARE
+    NC NUMBER;
+BEGIN
+    NC:=PRACTICAPL1.FUNCTION11('barcelona');
+    DBMS_OUTPUT.PUT_LINE('Número de Clientes: '||NC);
+END;
+EXECUTE PRACTICAPL1.PROCEDURE12;
+EXECUTE PRACTICAPL1.PROCEDURE13(1);
